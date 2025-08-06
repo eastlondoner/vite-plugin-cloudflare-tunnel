@@ -858,11 +858,24 @@ async function handleAgentLogs(
     const cursorService = new CursorApiService(apiKey);
     const conversation = await cursorService.getAgentConversation(agentId);
 
+    const shortId = agentId.slice(-8);
+    const statusEmoji = {
+      'CREATING': '🏗️',
+      'PENDING': '⏳',
+      'RUNNING': '⚙️',
+      'FINISHED': '✅',
+      'ERROR': '❌',
+      'EXPIRED': '⏰',
+    }[agent.status] || '📡';
+
+    const agentInfo = `${statusEmoji} **Agent ${shortId}** - ${agent.prompt.slice(0, 60)}${agent.prompt.length > 60 ? '...' : ''}`;
+    const threadLink = agent.discordThreadId ? `\n🧵 [View Thread](https://discord.com/channels/@me/${agent.discordThreadId})` : '';
+
     if (!conversation.messages || conversation.messages.length === 0) {
       return {
         type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
         data: {
-          content: `📝 **Agent ${agentId.slice(-8)} Logs**\n\nNo conversation messages found yet.`,
+          content: `📝 **Agent Conversation Logs**\n\n${agentInfo}${threadLink}\n\n*No conversation messages found yet.*`,
         },
       };
     }
@@ -872,14 +885,25 @@ async function handleAgentLogs(
     const formattedMessages = messages.map((msg, index) => {
       const role = msg.role || 'unknown';
       const content = msg.content || 'No content';
-      const truncatedContent = content.length > 200 ? content.slice(0, 200) + '...' : content;
-      return `**${index + 1}. ${role}:** ${truncatedContent}`;
-    }).join('\n\n');
+      const truncatedContent = content.length > 300 ? content.slice(0, 300) + '...' : content;
+      
+      // Add role-specific emojis
+      const roleEmoji = {
+        'user': '👤',
+        'assistant': '🤖',
+        'system': '⚙️'
+      }[role.toLowerCase()] || '💬';
+      
+      return `${roleEmoji} **${role.charAt(0).toUpperCase() + role.slice(1)}:**\n${truncatedContent}`;
+    }).join('\n\n---\n\n');
+
+    const totalMessages = conversation.messages.length;
+    const showingText = totalMessages > 10 ? `\n\n*Showing latest 10 of ${totalMessages} messages*` : '';
 
     return {
       type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
       data: {
-        content: `📝 **Agent ${agentId.slice(-8)} Conversation Logs**\n\n${formattedMessages}`,
+        content: `📝 **Agent Conversation Logs**\n\n${agentInfo}${threadLink}\n\n${formattedMessages}${showingText}`,
       },
     };
 
@@ -931,6 +955,107 @@ async function handleAgentCommand(interaction: any, env: Env): Promise<Interacti
       return await handleAgentLogs(subcommand, channelId, env);
     default:
       return createErrorResponse('Unknown agent subcommand');
+  }
+}
+
+/**
+ * Handle autocomplete interactions
+ */
+async function handleAutocomplete(
+  interaction: any,
+  channelId: string,
+  env: Env
+): Promise<InteractionResponse> {
+  const { data } = interaction;
+  const commandName = data?.name;
+
+  // Only handle autocomplete for the agent command
+  if (commandName !== COMMAND_NAMES.AGENT) {
+    return {
+      type: InteractionResponseType.APPLICATION_COMMAND_AUTOCOMPLETE_RESULT,
+      data: { choices: [] }
+    };
+  }
+
+  // Find the focused option
+  const subcommand = data.options?.[0];
+  if (subcommand?.name !== 'logs') {
+    return {
+      type: InteractionResponseType.APPLICATION_COMMAND_AUTOCOMPLETE_RESULT,
+      data: { choices: [] }
+    };
+  }
+
+  const focusedOption = subcommand.options?.find((opt: any) => opt.focused);
+  if (!focusedOption || focusedOption.name !== 'agent_id') {
+    return {
+      type: InteractionResponseType.APPLICATION_COMMAND_AUTOCOMPLETE_RESULT,
+      data: { choices: [] }
+    };
+  }
+
+  try {
+    // Get agents from the current channel
+    const storage = new AgentStorageService(env.DB);
+    const agents = await storage.listAgentsByChannel(channelId, 25); // Discord max is 25 choices
+
+    // Filter based on user input
+    const userInput = (focusedOption.value || '').toString().toLowerCase();
+    const filteredAgents = agents.filter(agent => {
+      const shortId = agent.id.slice(-8);
+      const prompt = agent.prompt.toLowerCase();
+      return shortId.includes(userInput) || prompt.includes(userInput);
+    });
+
+    // Create choices with friendly names
+    const choices = filteredAgents.map(agent => {
+      const shortId = agent.id.slice(-8);
+      const truncatedPrompt = agent.prompt.length > 40 
+        ? agent.prompt.slice(0, 40) + '...' 
+        : agent.prompt;
+      
+      const statusEmoji = {
+        'CREATING': '🏗️',
+        'PENDING': '⏳',
+        'RUNNING': '⚙️',
+        'FINISHED': '✅',
+        'ERROR': '❌',
+        'EXPIRED': '⏰',
+      }[agent.status] || '📡';
+
+      // Ensure the choice name doesn't exceed Discord's 100 character limit
+      const choiceName = `${statusEmoji} ${shortId} - ${truncatedPrompt}`.slice(0, 100);
+
+      return {
+        name: choiceName,
+        value: agent.id // Use the full cursor agent ID as the value
+      };
+    });
+
+    // If no matches and user has typed something, show a helpful message
+    if (choices.length === 0 && userInput.length > 0) {
+      return {
+        type: InteractionResponseType.APPLICATION_COMMAND_AUTOCOMPLETE_RESULT,
+        data: { 
+          choices: [{ 
+            name: `No agents found matching "${userInput}" - try a shorter ID or prompt text`,
+            value: userInput
+          }]
+        }
+      };
+    }
+
+    return {
+      type: InteractionResponseType.APPLICATION_COMMAND_AUTOCOMPLETE_RESULT,
+      data: { choices: choices.slice(0, 25) } // Ensure we don't exceed Discord's limit
+    };
+
+  } catch (error) {
+    console.error('Failed to handle autocomplete:', error);
+    return {
+      type: InteractionResponseType.APPLICATION_COMMAND_AUTOCOMPLETE_RESULT,
+      data: { choices: [] }
+    };
   }
 }
 
@@ -1049,6 +1174,16 @@ async function handleDiscordInteraction(request: Request, env: Env, ctx: Executi
           response = createErrorResponse(`Unknown command: ${commandName}`);
       }
       console.log('🔒 Response:', response);
+      break;
+
+    case InteractionType.APPLICATION_COMMAND_AUTOCOMPLETE:
+      const autocompleteChannelId = interaction.channel_id;
+      if (!autocompleteChannelId) {
+        response = { type: InteractionResponseType.APPLICATION_COMMAND_AUTOCOMPLETE_RESULT, data: { choices: [] } };
+        break;
+      }
+      
+      response = await handleAutocomplete(interaction, autocompleteChannelId, env);
       break;
 
     case InteractionType.MODAL_SUBMIT:

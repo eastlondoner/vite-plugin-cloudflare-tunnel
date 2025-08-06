@@ -42,8 +42,13 @@ This combines Discord's [Interactions and Responding documentation](https://disc
 
 ### `/agent logs [agent_id]`
 - **Purpose**: View conversation logs for a specific agent
-- **Display**: Shows agent's conversation history from Cursor API
-- **Format**: User-friendly conversation display
+- **Autocomplete**: Smart autocomplete shows agents in the current channel with status emojis and prompt previews
+- **Features**: 
+  - 🔍 **Smart Search**: Filter agents by ID or prompt text as you type
+  - 📊 **Rich Display**: Shows agent status, truncated prompt, and thread links
+  - 💬 **Formatted Logs**: Role-specific emojis and improved message formatting
+  - 🧵 **Thread Integration**: Direct links to Discord threads when available
+- **ID Handling**: Works with full Cursor agent IDs (no separate internal IDs needed)
 
 ## 🚀 Quick Start
 
