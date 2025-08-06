@@ -19,7 +19,7 @@ import { validateGitHubUrl, mapApiAgentToStoredAgent } from './type-mappers';
 import { ThreadManager, createThreadManager } from './thread-manager';
 import { handleCursorWebhook } from './webhook-handler';
 import { handleThreadInteraction } from './thread-interaction-handler';
-import { ApiKeyManager, createApiKeyManager, getEffectiveApiKey } from './api-key-manager';
+import { ApiKeyManager, createApiKeyManager } from './api-key-manager';
 import type { 
   Env, 
   InteractionResponse, 
@@ -367,22 +367,35 @@ async function handleSetApiKey(
   interaction: any,
   channelId: string, 
   userId: string, 
+  type: 'user' | 'channel',
   env: Env
 ): Promise<InteractionResponse> {
+  // Validate type parameter
+  if (type !== 'user' && type !== 'channel') {
+    return createErrorResponse('Invalid API key type. Must be "user" or "channel".');
+  }
+
+  const isUserKey = type === 'user';
+  const title = isUserKey ? 'Set Personal API Key' : 'Set Channel API Key';
+  const label = isUserKey ? 'Your Personal Cursor API Key' : 'Channel Cursor API Key';
+  const placeholder = isUserKey 
+    ? 'Enter your personal Cursor API key...' 
+    : 'Enter the shared Cursor API key for this channel...';
+
   // Show Discord Modal for secure API key input
   return {
     type: InteractionResponseType.MODAL,
     data: {
-      custom_id: `api_key_modal_${channelId}`,
-      title: 'Set Cursor API Key',
+      custom_id: `api_key_modal_${type}_${isUserKey ? userId : channelId}`,
+      title,
       components: [{
         type: 1, // ACTION_ROW
         components: [{
           type: 4, // TEXT_INPUT
           custom_id: 'api_key_input',
-          label: 'Cursor API Key',
+          label,
           style: 1, // SHORT
-          placeholder: 'Enter your Cursor API key...',
+          placeholder,
           required: true,
           max_length: 200
         }]
@@ -436,6 +449,16 @@ async function handleApiKeyModalSubmit(
     return createErrorResponse('API key is required');
   }
 
+  // Parse type from custom_id: api_key_modal_{type}_{id}
+  const customId = interaction.data.custom_id;
+  const parts = customId.split('_');
+  const type = parts[3]; // api_key_modal_{type}_{id}
+  const targetId = parts[4];
+
+  if (type !== 'user' && type !== 'channel') {
+    return createErrorResponse('Invalid API key type in modal submission');
+  }
+
   const keyManager = createApiKeyManager(env.API_KEYS);
   
   // Validate the API key
@@ -444,16 +467,26 @@ async function handleApiKeyModalSubmit(
     return createErrorResponse('Invalid API key. Please check your Cursor API key.');
   }
 
-  // Store the API key
-  await keyManager.setApiKey(channelId, apiKey);
-
-  return {
-    type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-    data: {
-      content: '✅ Cursor API key has been set for this channel!',
-      flags: 64, // Ephemeral
-    },
-  };
+  // Store the API key based on type
+  if (type === 'user') {
+    await keyManager.setUserApiKey(targetId, apiKey);
+    return {
+      type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+      data: {
+        content: '✅ Your personal Cursor API key has been set!',
+        flags: 64, // Ephemeral
+      },
+    };
+  } else {
+    await keyManager.setApiKey(targetId, apiKey);
+    return {
+      type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+      data: {
+        content: '✅ Cursor API key has been set for this channel!',
+        flags: 64, // Ephemeral
+      },
+    };
+  }
 }
 
 /**
@@ -518,9 +551,9 @@ async function handleCreateAgent(
     return createErrorResponse('Repository must be a valid GitHub URL (e.g., https://github.com/org/repo)');
   }
 
-  // Get API key for this channel
+  // Get API key using agent creation resolution logic
   const keyManager = createApiKeyManager(env.API_KEYS);
-  const apiKey = await getEffectiveApiKey(channelId, keyManager, env.CURSOR_API_KEY);
+  const apiKey = await keyManager.resolveApiKeyForAgent(channelId, userId, env.CURSOR_API_KEY);
 
   if (!apiKey) {
     return createErrorResponseWithButton(
@@ -611,7 +644,7 @@ async function handleTaskCommand(
   }
 
   const keyManager = createApiKeyManager(env.API_KEYS);
-  const apiKey = await getEffectiveApiKey(channelId, keyManager, env.CURSOR_API_KEY);
+  const apiKey = await keyManager.resolveApiKeyForAgent(channelId, userId, env.CURSOR_API_KEY);
 
   if (!apiKey) {
     return createErrorResponseWithButton(
@@ -637,6 +670,127 @@ async function handleTaskCommand(
 }
 
 /**
+ * Handle /agents remove-api-key command
+ */
+async function handleRemoveApiKey(
+  interaction: any,
+  channelId: string,
+  userId: string,
+  type: 'user' | 'channel',
+  env: Env
+): Promise<InteractionResponse> {
+  // Validate type parameter
+  if (type !== 'user' && type !== 'channel') {
+    return createErrorResponse('Invalid API key type. Must be "user" or "channel".');
+  }
+
+  const keyManager = createApiKeyManager(env.API_KEYS);
+  
+  if (type === 'user') {
+    // Check if user has an API key
+    const userApiKey = await keyManager.getUserApiKey(userId);
+    if (!userApiKey) {
+      return createErrorResponse('You don\'t have a personal API key set.');
+    }
+
+    // Remove user API key
+    await keyManager.deleteUserApiKey(userId);
+    
+    return {
+      type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+      data: {
+        content: '✅ Your personal Cursor API key has been removed.',
+        flags: 64, // Ephemeral
+      },
+    };
+  } else {
+    // Check if channel has an API key
+    const channelApiKey = await keyManager.getApiKey(channelId);
+    if (!channelApiKey) {
+      return createErrorResponse('This channel doesn\'t have an API key set.');
+    }
+
+    // Remove channel API key
+    await keyManager.deleteApiKey(channelId);
+    
+    return {
+      type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+      data: {
+        content: '✅ The Cursor API key for this channel has been removed.',
+        flags: 64, // Ephemeral
+      },
+    };
+  }
+}
+
+/**
+ * Handle /agents api-key-status command
+ */
+async function handleApiKeyStatus(
+  interaction: any,
+  channelId: string,
+  userId: string,
+  env: Env
+): Promise<InteractionResponse> {
+  const keyManager = createApiKeyManager(env.API_KEYS);
+  
+  // Check what API key would be used for agent creation
+  const userApiKey = await keyManager.getUserApiKey(userId);
+  const channelApiKey = await keyManager.getApiKey(channelId);
+  const hasDefaultKey = !!env.CURSOR_API_KEY;
+
+  let statusMessage = '🔍 **API Key Status**\n\n';
+  
+  if (userApiKey) {
+    statusMessage += '✅ **Personal API Key**: Set (will be used for your agents)\n';
+  } else {
+    statusMessage += '❌ **Personal API Key**: Not set\n';
+  }
+  
+  if (channelApiKey) {
+    statusMessage += '✅ **Channel API Key**: Set (will be used for agents when no personal key)\n';
+  } else {
+    statusMessage += '❌ **Channel API Key**: Not set\n';
+  }
+  
+  if (hasDefaultKey) {
+    statusMessage += '🔄 **Default API Key**: Available (fallback)\n';
+  } else {
+    statusMessage += '❌ **Default API Key**: Not configured\n';
+  }
+
+  statusMessage += '\n**For Agent Creation:**\n';
+  if (userApiKey) {
+    statusMessage += '→ Your personal API key will be used ✅';
+  } else if (channelApiKey) {
+    statusMessage += '→ Channel API key will be used 🏢';
+  } else if (hasDefaultKey) {
+    statusMessage += '→ Default API key will be used 🔄';
+  } else {
+    statusMessage += '→ ❌ No API key available - agents cannot be created';
+  }
+
+  statusMessage += '\n\n**For Thread Replies:**\n';
+  if (channelApiKey) {
+    statusMessage += '→ Channel API key will be used (priority) 🏢';
+  } else if (userApiKey) {
+    statusMessage += '→ Last replier\'s personal API key will be used 🔑';
+  } else if (hasDefaultKey) {
+    statusMessage += '→ Default API key will be used 🔄';
+  } else {
+    statusMessage += '→ ❌ No API key available - thread replies won\'t work';
+  }
+
+  return {
+    type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+    data: {
+      content: statusMessage,
+      flags: 64, // Ephemeral
+    },
+  };
+}
+
+/**
  * Create agent asynchronously and send follow-up message to Discord
  */
 async function createAgentAsync(
@@ -655,9 +809,9 @@ async function createAgentAsync(
       throw new Error('Repository must be a valid GitHub URL (e.g., https://github.com/org/repo)');
     }
 
-    // Get API key for this channel
+    // Get API key using agent creation resolution logic
     const keyManager = createApiKeyManager(env.API_KEYS);
-    const apiKey = await getEffectiveApiKey(channelId, keyManager, env.CURSOR_API_KEY);
+    const apiKey = await keyManager.resolveApiKeyForAgent(channelId, userId, env.CURSOR_API_KEY);
 
     if (!apiKey) {
       throw new Error('No Cursor API key configured for this channel');
@@ -842,9 +996,9 @@ async function handleAgentLogs(
       return createErrorResponse('Agent not found in this channel');
     }
 
-    // Get API key for this channel
+    // Get API key for this channel (use channel-first resolution for existing agent operations)
     const keyManager = createApiKeyManager(env.API_KEYS);
-    const apiKey = await getEffectiveApiKey(channelId, keyManager, env.CURSOR_API_KEY);
+    const apiKey = await keyManager.resolveApiKeyForThread(channelId, agent.discordUserId, env.CURSOR_API_KEY);
 
       if (!apiKey) {
     return createErrorResponseWithButton(
@@ -903,13 +1057,19 @@ async function handleAgentsCommand(interaction: any, env: Env): Promise<Interact
 
   switch (subcommand?.name) {
     case AGENTS_SUBCOMMANDS.SET_API_KEY:
-      return await handleSetApiKey(interaction, channelId, userId, env);
+      const apiKeyType = subcommand.options?.find((opt: any) => opt.name === 'type')?.value;
+      return await handleSetApiKey(interaction, channelId, userId, apiKeyType, env);
     case AGENTS_SUBCOMMANDS.CREATE:
       return await handleCreateAgent(subcommand, channelId, userId, env);
     case AGENTS_SUBCOMMANDS.LIST:
       return await handleListAgents(subcommand, channelId, env);
     case AGENTS_SUBCOMMANDS.SET_DEFAULT_REPO:
       return await handleSetDefaultRepo(subcommand, channelId, env);
+    case AGENTS_SUBCOMMANDS.REMOVE_API_KEY:
+      const removeType = subcommand.options?.find((opt: any) => opt.name === 'type')?.value;
+      return await handleRemoveApiKey(interaction, channelId, userId, removeType, env);
+    case AGENTS_SUBCOMMANDS.API_KEY_STATUS:
+      return await handleApiKeyStatus(interaction, channelId, userId, env);
     default:
       return createErrorResponse('Unknown agents subcommand');
   }
@@ -1071,7 +1231,7 @@ async function handleDiscordInteraction(request: Request, env: Env, ctx: Executi
       
       if (componentData?.custom_id === 'set_api_key_button') {
         // Handle the "Set API Key" button click by showing the modal
-        response = await handleSetApiKey(interaction, componentChannelId, componentUserId, env);
+        response = await handleSetApiKey(interaction, componentChannelId, componentUserId, 'channel', env);
       } else if (componentData?.custom_id === 'set_default_repo_button') {
         // Handle the "Set Default Repository" button click by showing the modal
         response = await handleSetDefaultRepoButton(interaction, componentChannelId, componentUserId, env);

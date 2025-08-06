@@ -4,7 +4,7 @@
  * Each Discord channel can have its own API key for team isolation.
  */
 
-import type { ChannelApiKey } from './types';
+import type { ChannelApiKey, UserApiKey } from './types';
 import { CursorApiService } from './cursor-service';
 
 /**
@@ -75,6 +75,65 @@ export class ApiKeyManager {
     await this.kv.delete(storageKey);
     
     console.log(`🗑️ Deleted API key for channel ${channelId}`);
+  }
+
+  /**
+   * Store a Cursor API key for a specific Discord user
+   */
+  async setUserApiKey(userId: string, apiKey: string): Promise<void> {
+    if (!userId || !apiKey) {
+      throw new Error('User ID and API key are required');
+    }
+
+    const keyData: UserApiKey = {
+      userId,
+      apiKey,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const storageKey = this.getUserStorageKey(userId);
+    await this.kv.put(storageKey, JSON.stringify(keyData));
+    
+    console.log(`🔑 Stored user API key for user ${userId}`);
+  }
+
+  /**
+   * Retrieve the Cursor API key for a specific Discord user
+   */
+  async getUserApiKey(userId: string): Promise<string | null> {
+    if (!userId) {
+      return null;
+    }
+
+    const storageKey = this.getUserStorageKey(userId);
+    const data = await this.kv.get(storageKey);
+    
+    if (!data) {
+      return null;
+    }
+
+    try {
+      const keyData = JSON.parse(data) as UserApiKey;
+      return keyData.apiKey;
+    } catch (error) {
+      console.error(`❌ Error parsing user API key data for user ${userId}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Delete the API key for a specific Discord user
+   */
+  async deleteUserApiKey(userId: string): Promise<void> {
+    if (!userId) {
+      return;
+    }
+
+    const storageKey = this.getUserStorageKey(userId);
+    await this.kv.delete(storageKey);
+    
+    console.log(`🗑️ Deleted user API key for user ${userId}`);
   }
 
   /**
@@ -163,6 +222,79 @@ export class ApiKeyManager {
    */
   private getStorageKey(channelId: string): string {
     return `channel:${channelId}:api_key`;
+  }
+
+  /**
+   * Generate the KV storage key for a user's API key
+   */
+  private getUserStorageKey(userId: string): string {
+    return `user:${userId}:api_key`;
+  }
+
+  /**
+   * Resolve API key for agent creation (user key priority)
+   * Priority: User key → Channel key → Default key
+   */
+  async resolveApiKeyForAgent(
+    channelId: string, 
+    userId: string, 
+    defaultApiKey?: string
+  ): Promise<string | null> {
+    // First try user's personal API key
+    const userApiKey = await this.getUserApiKey(userId);
+    if (userApiKey) {
+      console.log(`🔑 Using user API key for user ${userId}`);
+      return userApiKey;
+    }
+
+    // Then try channel API key
+    const channelApiKey = await this.getApiKey(channelId);
+    if (channelApiKey) {
+      console.log(`🏢 Using channel API key for channel ${channelId}`);
+      return channelApiKey;
+    }
+
+    // Finally fall back to default API key
+    if (defaultApiKey) {
+      console.log(`🔄 Using default API key for channel ${channelId}, user ${userId}`);
+      return defaultApiKey;
+    }
+
+    return null;
+  }
+
+  /**
+   * Resolve API key for thread replies (channel key priority)
+   * Priority: Channel key → Last reply user's key → Default key
+   */
+  async resolveApiKeyForThread(
+    channelId: string, 
+    lastReplyUserId: string, 
+    defaultApiKey?: string
+  ): Promise<string | null> {
+    // First try channel API key (team collaboration priority)
+    const channelApiKey = await this.getApiKey(channelId);
+    if (channelApiKey) {
+      console.log(`🏢 Using channel API key for thread in channel ${channelId}`);
+      return channelApiKey;
+    }
+
+    // Then try last reply user's API key
+    if (lastReplyUserId) {
+      const userApiKey = await this.getUserApiKey(lastReplyUserId);
+      if (userApiKey) {
+        console.log(`🔑 Using last reply user API key for user ${lastReplyUserId}`);
+        return userApiKey;
+      }
+    }
+
+    // Finally fall back to default API key
+    if (defaultApiKey) {
+      console.log(`🔄 Using default API key for thread in channel ${channelId}`);
+      return defaultApiKey;
+    }
+
+    return null;
   }
 }
 

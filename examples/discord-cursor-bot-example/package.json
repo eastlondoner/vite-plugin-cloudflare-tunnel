@@ -22,6 +22,7 @@
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.10.2",
     "internal-rules": "file:./rules",
+    "typescript": "^5.9.2",
     "vite": "^7.0.0",
     "vite-plugin-cloudflare-tunnel": "file:../..",
     "wrangler": "^4.0.0"

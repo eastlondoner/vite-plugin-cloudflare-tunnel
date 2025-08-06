@@ -6,7 +6,7 @@
 
 import { CursorApiService } from './cursor-service';
 import { ThreadManager } from './thread-manager';
-import { ApiKeyManager, createApiKeyManager, getEffectiveApiKey } from './api-key-manager';
+import { ApiKeyManager, createApiKeyManager } from './api-key-manager';
 import type { 
   Env, 
   ThreadInteraction, 
@@ -40,7 +40,9 @@ export class ThreadInteractionHandler {
 
       // Get all user messages since the last bot message
       const followUpMessages = this.getMessagesSinceLastBot(interaction.messages);
-      const userId = interaction.triggering_message.author.id;
+      
+      // Get the last reply user ID (for API key resolution)
+      const lastReplyUserId = this.getLastReplyUserId(interaction.messages);
 
       // Skip if no meaningful user messages found
       if (followUpMessages.length === 0) {
@@ -77,7 +79,7 @@ export class ThreadInteractionHandler {
       await this.createFollowUpMessage(
         agentId, 
         combinedMessage, 
-        userId, 
+        lastReplyUserId, 
         interaction.thread.id
       );
 
@@ -155,6 +157,20 @@ export class ThreadInteractionHandler {
   }
 
   /**
+   * Get the user ID of the last non-bot message in the thread
+   */
+  private getLastReplyUserId(messages: Array<any>): string {
+    // Sort messages by creation time (newest first)
+    const sortedMessages = messages.sort((a, b) => 
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+    
+    // Find the last user message (not bot message)
+    const lastUserMessage = sortedMessages.find(msg => !msg.author.bot);
+    return lastUserMessage?.author.id || '';
+  }
+
+  /**
    * Combine multiple follow-up messages into a single coherent message
    */
   private combineFollowUpMessages(messages: Array<any>): string {
@@ -205,9 +221,13 @@ export class ThreadInteractionHandler {
 
       console.log(`📋 Found agent: ${agent.id} in channel ${agent.discordChannelId}`);
 
-      // Get API key for the channel
+      // Get API key using thread-specific resolution logic
       const apiKeyManager = createApiKeyManager(this.env.API_KEYS);
-      const apiKey = await getEffectiveApiKey(agent.discordChannelId, apiKeyManager, this.env.CURSOR_API_KEY);
+      const apiKey = await apiKeyManager.resolveApiKeyForThread(
+        agent.discordChannelId, 
+        userId, 
+        this.env.CURSOR_API_KEY
+      );
       
       if (!apiKey) {
         throw new Error('No API key available for this channel');

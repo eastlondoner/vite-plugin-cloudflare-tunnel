@@ -35,8 +35,17 @@ export const AGENT_COMMANDS = {
     {
       type: ApplicationCommandOptionType.SUB_COMMAND,
       name: 'set-api-key',
-      description: 'Set Cursor API key for this channel (secure modal input)',
-      options: [] // No parameters - uses Discord Modal for secure input
+      description: 'Set Cursor API key for user or channel',
+      options: [{
+        type: ApplicationCommandOptionType.STRING,
+        name: 'type',
+        description: 'Set API key for user or channel',
+        required: true,
+        choices: [
+          { name: 'User (Personal API Key)', value: 'user' },
+          { name: 'Channel (Shared API Key)', value: 'channel' }
+        ]
+      }]
     },
     {
       type: ApplicationCommandOptionType.SUB_COMMAND,
@@ -86,6 +95,27 @@ export const AGENT_COMMANDS = {
         description: 'GitHub repository URL (e.g., https://github.com/org/repo)',
         required: true
       }]
+    },
+    {
+      type: ApplicationCommandOptionType.SUB_COMMAND,
+      name: 'remove-api-key',
+      description: 'Remove Cursor API key for user or channel',
+      options: [{
+        type: ApplicationCommandOptionType.STRING,
+        name: 'type',
+        description: 'Remove API key for user or channel',
+        required: true,
+        choices: [
+          { name: 'User (Personal API Key)', value: 'user' },
+          { name: 'Channel (Shared API Key)', value: 'channel' }
+        ]
+      }]
+    },
+    {
+      type: ApplicationCommandOptionType.SUB_COMMAND,
+      name: 'api-key-status',
+      description: 'Check which API key would be used',
+      options: []
     }
   ]
 } as const;
@@ -159,6 +189,8 @@ export const AGENTS_SUBCOMMANDS = {
   CREATE: 'create',
   LIST: 'list',
   SET_DEFAULT_REPO: 'set-default-repo',
+  REMOVE_API_KEY: 'remove-api-key',
+  API_KEY_STATUS: 'api-key-status',
 } as const;
 
 /**
