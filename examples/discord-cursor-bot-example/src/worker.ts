@@ -569,7 +569,7 @@ async function handleCreateAgent(
     return {
       type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
       data: {
-        content: `🤖 **Agent Created!**\n\n**ID:** \`${agent.id}\`\n**Status:** ${agent.status}\n**Repository:** ${repository}\n\n${botToken ? '📡 Updates will be posted to the created thread.' : ''}`,
+        content: `🤖 **Agent Created!**\n\n**ID:** \`${agent.id}\`\n**Status:** ${agent.status}\n**Repository:** ${repository}\n\n🌐 **View in Cursor Web App:** https://cursor.com/agents?id=${agent.id}\n\n${botToken ? '📡 Updates will be posted to the created thread.' : ''}`,
       },
     };
 
@@ -691,7 +691,7 @@ async function createAgentAsync(
       }
     }
 
-    // const successMessage = `🤖 **Agent Created Successfully!**\n\n**ID:** \`${agent.id}\`\n**Status:** ${agent.status}\n**Repository:** ${repository}${threadInfo}`;
+    // const successMessage = `🤖 **Agent Created Successfully!**\n\n**ID:** \`${agent.id}\`\n**Status:** ${agent.status}\n**Repository:** ${repository}\n\n🌐 **View in Cursor Web App:** https://cursor.com/agents?id=${agent.id}${threadInfo}`;
     
     // await sendFollowUpMessage(channelId, successMessage, env);
   } catch (error) {

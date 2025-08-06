@@ -75,11 +75,14 @@ export class ThreadManager {
    */
   private async sendInitialMessage(threadId: string, agentId: string, prompt: string): Promise<void> {
     try {
+      const cursorWebUrl = `https://cursor.com/agents?id=${agentId}`;
       const welcomeMessage = [
         `🚀 **Agent Created Successfully!**`,
         ``,
         `**Agent ID:** \`${agentId}\``,
         `**Task:** ${prompt}`,
+        ``,
+        `🌐 **View in Cursor Web App:** ${cursorWebUrl}`,
         ``,
         `I'll post updates here as the agent works on your task. Stay tuned! 👀`
       ].join('\n');
