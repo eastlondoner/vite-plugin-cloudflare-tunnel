@@ -34,20 +34,43 @@ async resolveApiKeyForThread(channelId: string, lastReplyUserId: string, default
 
 ### 3. Discord Commands (`src/discord-commands.ts`)
 
-Add new subcommands to the `/agents` command:
+**Update existing `set-api-key` subcommand** to include type parameter:
 
 ```typescript
 {
   type: ApplicationCommandOptionType.SUB_COMMAND,
-  name: 'set-user-api-key',
-  description: 'Set your personal Cursor API key',
-  options: []
-},
+  name: 'set-api-key',
+  description: 'Set Cursor API key for user or channel',
+  options: [{
+    type: ApplicationCommandOptionType.STRING,
+    name: 'type',
+    description: 'Set API key for user or channel',
+    required: true,
+    choices: [
+      { name: 'User (Personal API Key)', value: 'user' },
+      { name: 'Channel (Shared API Key)', value: 'channel' }
+    ]
+  }]
+}
+```
+
+**Add new subcommands**:
+
+```typescript
 {
   type: ApplicationCommandOptionType.SUB_COMMAND,
-  name: 'remove-user-api-key', 
-  description: 'Remove your personal Cursor API key',
-  options: []
+  name: 'remove-api-key',
+  description: 'Remove Cursor API key for user or channel',
+  options: [{
+    type: ApplicationCommandOptionType.STRING,
+    name: 'type',
+    description: 'Remove API key for user or channel',
+    required: true,
+    choices: [
+      { name: 'User (Personal API Key)', value: 'user' },
+      { name: 'Channel (Shared API Key)', value: 'channel' }
+    ]
+  }]
 },
 {
   type: ApplicationCommandOptionType.SUB_COMMAND,
@@ -59,18 +82,45 @@ Add new subcommands to the `/agents` command:
 
 ### 4. Worker Command Handlers (`src/worker.ts`)
 
-Add handlers for new commands:
+**Update existing handler** to support type parameter:
 
 ```typescript
-case 'set-user-api-key':
-  response = await handleSetUserApiKey(interaction, userId, env);
+case 'set-api-key':
+  const apiKeyType = subcommand.options?.find((opt: any) => opt.name === 'type')?.value;
+  response = await handleSetApiKey(interaction, channelId, userId, apiKeyType, env);
   break;
-case 'remove-user-api-key':
-  response = await handleRemoveUserApiKey(interaction, userId, env);
+```
+
+**Add new handlers**:
+
+```typescript
+case 'remove-api-key':
+  const removeType = subcommand.options?.find((opt: any) => opt.name === 'type')?.value;
+  response = await handleRemoveApiKey(interaction, channelId, userId, removeType, env);
   break;
 case 'api-key-status':
   response = await handleApiKeyStatus(interaction, channelId, userId, env);
   break;
+```
+
+**Updated Handler Function Signatures**:
+
+```typescript
+async function handleSetApiKey(
+  interaction: any,
+  channelId: string,
+  userId: string,
+  type: 'user' | 'channel',
+  env: Env
+): Promise<InteractionResponse>
+
+async function handleRemoveApiKey(
+  interaction: any,
+  channelId: string,
+  userId: string,
+  type: 'user' | 'channel',
+  env: Env
+): Promise<InteractionResponse>
 ```
 
 Update existing agent creation to use new resolution:

@@ -89,26 +89,18 @@ export class ApiKeyManager {
 
 #### New Discord Commands
 
-**User API Key Management:**
+**Unified API Key Management:**
 ```
-/agents set-user-api-key
-  - Sets API key for the requesting user
+/agents set-api-key [type: user|channel]
+  - type: user - Sets API key for the requesting user
+  - type: channel - Sets API key for current channel
   - Uses Discord Modal for secure input
-  - Stored with user ID as key
+  - Channel type requires appropriate Discord permissions
 
-/agents remove-user-api-key
-  - Removes the requesting user's API key
-  - Confirmation prompt
-```
-
-**Enhanced Channel Commands:**
-```
-/agents set-api-key (existing, unchanged)
-  - Sets API key for current channel
-
-/agents remove-api-key
-  - Removes channel API key
-  - Admin/manage channel permission required
+/agents remove-api-key [type: user|channel]
+  - type: user - Removes the requesting user's API key
+  - type: channel - Removes channel API key (requires permissions)
+  - Confirmation prompt for safety
 ```
 
 **Status/Info Commands:**
@@ -228,14 +220,14 @@ No database schema changes required - all API keys are stored in Cloudflare KV.
 
 #### Scenario 1: Team Channel with Individual Overrides
 ```
-Channel #dev-team:
-- Channel API Key: team_key_123
-- Alice has user API key: alice_key_456
-- Bob uses channel key (no personal key)
+Setup Commands:
+- Admin runs: /agents set-api-key type:channel → Sets team_key_123
+- Alice runs: /agents set-api-key type:user → Sets alice_key_456
+- Bob has no personal key (uses channel key)
 
 Agent Creation:
-- Alice runs /task "fix bug" → Uses alice_key_456
-- Bob runs /task "add feature" → Uses team_key_123
+- Alice runs /task "fix bug" → Uses alice_key_456 (user key priority)
+- Bob runs /task "add feature" → Uses team_key_123 (channel key)
 
 Thread Replies:
 - In Alice's agent thread, Bob replies → Uses team_key_123 (channel first)
@@ -244,9 +236,9 @@ Thread Replies:
 
 #### Scenario 2: Personal Channel
 ```
-Channel #alice-sandbox:
-- No channel API key set
-- Alice has user API key: alice_key_456
+Setup Commands:
+- Alice runs: /agents set-api-key type:user → Sets alice_key_456
+- No channel key set
 
 Agent Creation:
 - Alice runs /task "experiment" → Uses alice_key_456
@@ -259,10 +251,10 @@ Thread Replies:
 
 #### Scenario 3: Thread with Multiple Users
 ```
-Channel #collaboration:
-- Channel API Key: collab_key_789
-- Alice has user API key: alice_key_456
-- Bob has user API key: bob_key_123
+Setup Commands:
+- Admin runs: /agents set-api-key type:channel → Sets collab_key_789
+- Alice runs: /agents set-api-key type:user → Sets alice_key_456
+- Bob runs: /agents set-api-key type:user → Sets bob_key_123
 
 Agent Creation:
 - Alice runs /agents create "project setup" → Uses alice_key_456
