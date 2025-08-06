@@ -72,6 +72,31 @@ export class WebhookHandler {
   }
 
   /**
+   * Mark webhook as active for an agent (so polling knows webhook is working)
+   */
+  private async markWebhookActive(agentId: string): Promise<void> {
+    try {
+      const now = new Date().toISOString();
+      // Try to update existing record first
+      const result = await this.env.DB.prepare(`
+        UPDATE active_agents_polling 
+        SET webhook_active = TRUE, updated_at = ?
+        WHERE agent_id = ?
+      `).bind(now, agentId).run();
+
+      // If no rows were updated, insert a new record
+      if (result.changes === 0) {
+        await this.env.DB.prepare(`
+          INSERT INTO active_agents_polling (agent_id, status, last_polled_at, last_message_index, webhook_active, updated_at)
+          VALUES (?, 'WEBHOOK_ACTIVE', ?, 0, TRUE, ?)
+        `).bind(agentId, now, now).run();
+      }
+    } catch (error) {
+      console.error(`❌ Failed to mark webhook active for agent ${agentId}:`, error);
+    }
+  }
+
+  /**
    * Process a Cursor webhook event and update Discord accordingly
    */
   async processWebhookEvent(event: CursorWebhookEvent): Promise<void> {
@@ -82,6 +107,9 @@ export class WebhookHandler {
     });
 
     try {
+      // Mark webhook as active for this agent
+      await this.markWebhookActive(event.id);
+
       // Update agent status in database
       await this.updateAgentStatus(
         event.id, 

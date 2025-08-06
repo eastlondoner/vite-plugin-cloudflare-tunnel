@@ -10,7 +10,10 @@ This combines Discord's [Interactions and Responding documentation](https://disc
 - 🔑 **Channel-specific API keys** stored securely in Cloudflare KV
 - 🧵 **Auto-created Discord threads** for each agent with real-time progress updates  
 - 📡 **Webhook integration** receives updates from Cursor API and posts to Discord
-- 💾 **D1 Database storage** for agent records and thread relationships
+- 🔄 **Intelligent polling fallback** - checks active agents every 2 minutes when webhooks fail
+- 💬 **Chat log streaming** - automatically posts new conversation messages to Discord threads
+- 📝 **Message deduplication** - tracks sent messages to avoid duplicates between webhooks and polling
+- 💾 **D1 Database storage** for agent records, thread relationships, and message tracking
 - ⚡ **Cloudflare Workers backend** - serverless, scalable, and fast
 - 🌐 **Public HTTPS endpoint** via Cloudflare Tunnel
 - 📊 **Simple web dashboard** to monitor agents across all channels
@@ -127,27 +130,61 @@ Discord Slash Commands
         ↓
 Cloudflare Worker (worker.ts)
         ↓
-┌─────────────────┬─────────────────┐
-│   KV Storage    │   D1 Database   │
-│ (API Keys by    │ (Agent Records) │
-│  Channel ID)    │                 │
-└─────────────────┴─────────────────┘
+┌─────────────────┬─────────────────────────────────────┐
+│   KV Storage    │           D1 Database               │
+│ (API Keys by    │ • Agent Records                     │
+│  Channel ID)    │ • Thread Message Tracking           │
+│                 │ • Polling Status & Webhook Health   │
+└─────────────────┴─────────────────────────────────────┘
         ↓
 Cursor API Integration (cursor-service.ts)
         ↓
+┌─────────────────────┬─────────────────────────────────┐
+│   Webhook Updates   │      Polling Service            │
+│   (Real-time)       │   (Every 2 minutes fallback)   │
+│                     │   • Fetches conversation logs  │
+│                     │   • Tracks sent messages       │
+│                     │   • Only when webhooks fail    │
+└─────────────────────┴─────────────────────────────────┘
+        ↓
 Discord Thread Updates (thread-manager.ts)
-(via Webhooks from webhook-handler.ts)
+• Status updates via webhooks
+• Chat messages via polling
+• Intelligent deduplication
 ```
 
 ### 📁 Code Structure
 
-- **`src/worker.ts`** - Main Cloudflare Worker handling Discord interactions
+- **`src/worker.ts`** - Main Cloudflare Worker handling Discord interactions and scheduled polling
 - **`src/thread-manager.ts`** - Discord thread creation and management
 - **`src/webhook-handler.ts`** - Cursor API webhook processing and Discord updates
+- **`src/polling-service.ts`** - Intelligent polling service for active agents (fallback when webhooks fail)
 - **`src/cursor-service.ts`** - Cursor Background Agents API integration
 - **`src/discord-commands.ts`** - Discord slash command definitions
 - **`src/types.ts`** - TypeScript interfaces for the application
 - **`src/cursor-api-types.ts`** - Cursor API specific type definitions
+
+## 🔄 Polling System
+
+The bot includes an intelligent polling system that automatically kicks in when webhook updates are not available:
+
+### How It Works
+1. **Webhook Priority**: When agents are created, webhooks provide real-time status updates
+2. **Automatic Fallback**: If webhooks stop working (network issues, API problems), polling activates after 5 minutes
+3. **Smart Polling**: Only polls agents that haven't received webhook updates recently
+4. **Message Tracking**: Tracks which conversation messages have been sent to avoid duplicates
+5. **Conversation Streaming**: Fetches latest chat logs and posts new messages to Discord threads
+
+### Polling Features
+- **Frequency**: Every 2 minutes for active agents (`CREATING`, `PENDING`, `RUNNING`)
+- **Batch Processing**: Processes 3 agents at a time to respect rate limits
+- **Deduplication**: Database tracking prevents duplicate messages between webhooks and polling
+- **Automatic Cleanup**: Removes completed agents from polling table
+- **Webhook Recovery**: Automatically switches back to webhooks when they become available
+
+### Database Tables
+- **`active_agents_polling`**: Tracks polling status and webhook health for each agent
+- **`agent_thread_messages`**: Records which messages have been sent to Discord to prevent duplicates
 
 ## 🛠️ Development
 
@@ -168,6 +205,12 @@ npm run db:migrate:prod
 
 # View data
 wrangler d1 execute discord-cursor-agents --local --command="SELECT * FROM agents"
+
+# View polling status
+wrangler d1 execute discord-cursor-agents --local --command="SELECT * FROM active_agents_polling"
+
+# View message tracking
+wrangler d1 execute discord-cursor-agents --local --command="SELECT * FROM agent_thread_messages ORDER BY sent_at DESC LIMIT 10"
 ```
 
 ### Production Deployment

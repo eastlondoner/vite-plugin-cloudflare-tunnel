@@ -20,6 +20,7 @@ import { ThreadManager, createThreadManager } from './thread-manager';
 import { handleCursorWebhook } from './webhook-handler';
 import { handleThreadInteraction } from './thread-interaction-handler';
 import { ApiKeyManager, createApiKeyManager, getEffectiveApiKey } from './api-key-manager';
+import { createPollingService } from './polling-service';
 import type { 
   Env, 
   InteractionResponse, 
@@ -1239,6 +1240,20 @@ async function handleFetch(request: Request, env: Env, ctx: ExecutionContext): P
 }
 
 /**
+ * Handle scheduled events (cron jobs) for polling active agents
+ */
+async function handleScheduled(event: any, env: Env, ctx: ExecutionContext): Promise<void> {
+  console.log('⏰ Scheduled event triggered:', event.cron);
+  
+  try {
+    const pollingService = createPollingService(env);
+    await pollingService.pollActiveAgents();
+  } catch (error) {
+    console.error('❌ Error in scheduled polling:', error);
+  }
+}
+
+/**
  * Main worker export
  */
 export default {
@@ -1246,5 +1261,9 @@ export default {
     const response = await handleFetch(request, env, ctx);
     console.log('🔒 Response:', response.status);
     return response;
+  },
+
+  async scheduled(event: any, env: Env, ctx: ExecutionContext): Promise<void> {
+    return await handleScheduled(event, env, ctx);
   },
 };

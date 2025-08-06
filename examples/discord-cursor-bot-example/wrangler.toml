@@ -27,3 +27,7 @@ id = "82f4f91af5314fc4a25006431c98d5f6"
 [assets]
 run_worker_first = false
 not_found_handling = "single-page-application"
+
+# Scheduled events for polling active agents every 2 minutes
+[triggers]
+crons = ["*/2 * * * *"]
