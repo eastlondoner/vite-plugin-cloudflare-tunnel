@@ -274,5 +274,12 @@ export interface Env {
   DISCORD_PUBLIC_KEY: string;
   DISCORD_BOT_TOKEN: string;
   CURSOR_API_KEY?: string;
-  VERSION?: string;
+  CF_VERSION_METADATA: WorkerVersionMetadata;
+}
+
+// Cloudflare Worker Version Metadata binding type
+export interface WorkerVersionMetadata {
+  id: string;       // versionId
+  tag?: string;     // versionTag (optional)
+  timestamp?: string; // ISO timestamp
 }

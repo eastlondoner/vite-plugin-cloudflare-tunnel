@@ -8,8 +8,6 @@ compatibility_flags = ["nodejs_compat"]
 # Environment variables
 [vars]
 # Add any non-secret environment variables here
-# Use Cloudflare Version Binding to stamp deployment id
-VERSION = "${__DEPLOYMENT_ID}"
 
 # D1 database for storing agents and webhook events
 [[d1_databases]]
@@ -32,3 +30,6 @@ not_found_handling = "single-page-application"
 
 [triggers]
 crons = ["0 5 * * *"]
+
+[version_metadata]
+binding = "CF_VERSION_METADATA"

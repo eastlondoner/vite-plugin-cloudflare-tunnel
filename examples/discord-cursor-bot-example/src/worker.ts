@@ -97,7 +97,7 @@ async function setGuildVersion(env: Env, guildId: string, version: string, statu
 
 async function ensureGuildCommandsUpToDate(env: Env, guildId: string, guildName?: string): Promise<void> {
   await upsertGuild(env, guildId, guildName);
-  const currentVersion = env.VERSION || COMMANDS_VERSION_FALLBACK;
+  const currentVersion = env.CF_VERSION_METADATA?.id || env.CF_VERSION_METADATA?.tag || COMMANDS_VERSION_FALLBACK;
   const record = await getGuildRecord(env, guildId);
   const storedVersion = record?.commands_version || null;
   if (storedVersion !== currentVersion) {
