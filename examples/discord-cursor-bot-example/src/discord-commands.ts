@@ -116,6 +116,12 @@ export const AGENT_COMMANDS = {
       name: 'api-key-status',
       description: 'Check which API key would be used',
       options: []
+    },
+    {
+      type: ApplicationCommandOptionType.SUB_COMMAND,
+      name: 'sync-commands',
+      description: 'Admin: Sync slash commands for this guild',
+      options: []
     }
   ]
 } as const;
@@ -191,6 +197,7 @@ export const AGENTS_SUBCOMMANDS = {
   SET_DEFAULT_REPO: 'set-default-repo',
   REMOVE_API_KEY: 'remove-api-key',
   API_KEY_STATUS: 'api-key-status',
+  SYNC_COMMANDS: 'sync-commands',
 } as const;
 
 /**
