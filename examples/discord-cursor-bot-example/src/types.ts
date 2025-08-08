@@ -274,4 +274,5 @@ export interface Env {
   DISCORD_PUBLIC_KEY: string;
   DISCORD_BOT_TOKEN: string;
   CURSOR_API_KEY?: string;
+  VERSION?: string;
 }

@@ -9,7 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "deploy": "npm run build && CI=1 npm run db:migrate:prod && wrangler deploy",
-    "db:migrate:local": "wrangler d1 migrations apply discord-cursor-agents --local",
+    "db:migrate:local": "CI=1 wrangler d1 migrations apply discord-cursor-agents --local",
     "db:migrate:prod": "wrangler d1 migrations apply discord-cursor-agents --remote",
     "prepare": "vibe-rules install ${VIBE_RULES_EDITOR:-cursor}",
     "typecheck": "tsc -b",
@@ -23,6 +23,7 @@
     "@cloudflare/vite-plugin": "^1.10.2",
     "internal-rules": "file:./rules",
     "typescript": "^5.9.2",
+    "llms": "file:./rules",
     "vite": "^7.0.0",
     "vite-plugin-cloudflare-tunnel": "file:../..",
     "wrangler": "^4.0.0"

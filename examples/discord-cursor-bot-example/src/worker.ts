@@ -45,6 +45,75 @@ function getTunnelUrl(): `https://${string}` {
 }
 
 /**
+ * Commands versioning
+ */
+const COMMANDS_VERSION_FALLBACK = 'dev';
+
+async function bulkSyncGuildCommands(env: Env, guildId: string): Promise<void> {
+  const botToken = getDiscordBotToken(env);
+  if (!botToken) return;
+
+  const appInfo = await getCurrentApplication(env);
+  const applicationId = appInfo.id;
+
+  const response = await fetch(`https://discord.com/api/v10/applications/${applicationId}/guilds/${guildId}/commands`, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bot ${botToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(ALL_COMMANDS)
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Failed to bulk sync commands for guild ${guildId}: ${response.status} - ${error}`);
+  }
+}
+
+async function upsertGuild(env: Env, guildId: string, guildName?: string): Promise<void> {
+  const now = new Date().toISOString();
+  await env.DB.prepare(
+    `INSERT INTO guilds (id, name, commands_version, last_seen_at, created_at, updated_at)
+     VALUES (?, ?, NULL, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET 
+       name=excluded.name,
+       last_seen_at=excluded.last_seen_at,
+       updated_at=excluded.updated_at`
+  ).bind(guildId, guildName || null, now, now, now).run();
+}
+
+async function getGuildRecord(env: Env, guildId: string): Promise<{ commands_version: string | null } | null> {
+  const row = await env.DB.prepare(`SELECT commands_version FROM guilds WHERE id = ?`).bind(guildId).first<{ commands_version: string | null }>();
+  return row || null;
+}
+
+async function setGuildVersion(env: Env, guildId: string, version: string, status: 'ok' | string): Promise<void> {
+  const now = new Date().toISOString();
+  await env.DB.prepare(
+    `UPDATE guilds SET commands_version = ?, last_synced_at = ?, last_sync_status = ?, updated_at = ? WHERE id = ?`
+  ).bind(version, now, status, now, guildId).run();
+}
+
+async function ensureGuildCommandsUpToDate(env: Env, guildId: string, guildName?: string): Promise<void> {
+  await upsertGuild(env, guildId, guildName);
+  const currentVersion = env.VERSION || COMMANDS_VERSION_FALLBACK;
+  const record = await getGuildRecord(env, guildId);
+  const storedVersion = record?.commands_version || null;
+  if (storedVersion !== currentVersion) {
+    try {
+      await bulkSyncGuildCommands(env, guildId);
+      await setGuildVersion(env, guildId, currentVersion, 'ok');
+      console.log(`✅ Synced commands for guild ${guildId} to version ${currentVersion}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      await setGuildVersion(env, guildId, storedVersion || '', message);
+      console.error(`❌ Failed to sync commands for guild ${guildId}:`, err);
+    }
+  }
+}
+
+/**
  * Helper function to create JSON responses with CORS headers
  */
 function jsonResponse(data: any, status = 200): Response {
@@ -474,7 +543,7 @@ async function handleApiKeyModalSubmit(
 
   // Store the API key based on type
   if (type === 'user') {
-    await keyManager.setUserApiKey(targetId, apiKey);
+    await keyManager.setUserApiKey(String(targetId), apiKey);
     return {
       type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
       data: {
@@ -483,7 +552,7 @@ async function handleApiKeyModalSubmit(
       },
     };
   } else {
-    await keyManager.setApiKey(targetId, apiKey);
+    await keyManager.setApiKey(String(targetId), apiKey);
     return {
       type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
       data: {
@@ -1075,6 +1144,19 @@ async function handleAgentsCommand(interaction: any, env: Env): Promise<Interact
       return await handleRemoveApiKey(interaction, channelId, userId, removeType, env);
     case AGENTS_SUBCOMMANDS.API_KEY_STATUS:
       return await handleApiKeyStatus(interaction, channelId, userId, env);
+    case AGENTS_SUBCOMMANDS.SYNC_COMMANDS:
+      if (!interaction.guild_id) {
+        return createErrorResponse('This command can only be used in a server.');
+      }
+      try {
+        await ensureGuildCommandsUpToDate(env, interaction.guild_id, interaction.guild?.name);
+        return {
+          type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+          data: { content: '✅ Commands synced for this guild.', flags: 64 },
+        };
+      } catch (e) {
+        return createErrorResponse(`Failed to sync commands: ${e instanceof Error ? e.message : 'Unknown error'}`);
+      }
     default:
       return createErrorResponse('Unknown agents subcommand');
   }
@@ -1226,8 +1308,15 @@ async function handleDiscordInteraction(request: Request, env: Env, ctx: Executi
       const { data, user, member, channel_id } = interaction;
       const commandName = data?.name;
       const userId = user?.id || member?.user?.id;
+      const guildId = interaction.guild_id;
+      const guildName = interaction.guild?.name;
 
       console.log('🎮 Handling command:', commandName, 'from user:', userId, 'in channel:', channel_id);
+
+      // Ensure guild commands are up to date (lazy self-healing)
+      if (guildId) {
+        await ensureGuildCommandsUpToDate(env, guildId, guildName);
+      }
 
       switch (commandName) {
         case COMMAND_NAMES.AGENTS:
@@ -1248,6 +1337,11 @@ async function handleDiscordInteraction(request: Request, env: Env, ctx: Executi
     case InteractionType.MODAL_SUBMIT:
       const modalData = interaction.data;
       const modalChannelId = interaction.channel_id;
+      const modalGuildId = interaction.guild_id;
+      const modalGuildName = interaction.guild?.name;
+      if (modalGuildId) {
+        await ensureGuildCommandsUpToDate(env, modalGuildId, modalGuildName);
+      }
       
       if (modalData?.custom_id?.startsWith('api_key_modal_')) {
         response = await handleApiKeyModalSubmit(interaction as ModalSubmitInteraction, modalChannelId, env);
@@ -1262,6 +1356,11 @@ async function handleDiscordInteraction(request: Request, env: Env, ctx: Executi
       const componentData = interaction.data;
       const componentChannelId = interaction.channel_id;
       const componentUserId = interaction.user?.id || interaction.member?.user?.id;
+      const componentGuildId = interaction.guild_id;
+      const componentGuildName = interaction.guild?.name;
+      if (componentGuildId) {
+        await ensureGuildCommandsUpToDate(env, componentGuildId, componentGuildName);
+      }
       
       if (componentData?.custom_id === 'set_api_key_button') {
         // Handle the "Set API Key" button click by showing the modal
@@ -1441,4 +1540,17 @@ export default {
     console.log('🔒 Response:', response.status);
     return response;
   },
+  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
+    try {
+      // Iterate all known guilds and ensure on current version
+      const result = await env.DB.prepare(`SELECT id, name FROM guilds`).all<{ id: string; name: string }>();
+      const guilds = result.results || [];
+      for (const g of guilds) {
+        ctx.waitUntil(ensureGuildCommandsUpToDate(env, g.id, g.name));
+      }
+      console.log(`🕒 Cron sync queued for ${guilds.length} guild(s).`);
+    } catch (error) {
+      console.error('❌ Scheduled commands sync failed:', error);
+    }
+  }
 };
