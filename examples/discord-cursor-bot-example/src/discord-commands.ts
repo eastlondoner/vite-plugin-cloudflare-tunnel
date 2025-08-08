@@ -139,12 +139,6 @@ export const TASK_COMMAND = {
       name: 'prompt',
       description: 'Task description for the agent',
       required: true
-    },
-    {
-      type: ApplicationCommandOptionType.STRING,
-      name: 'repository',
-      description: 'GitHub repository URL (overrides channel default)',
-      required: false
     }
   ]
 } as const;

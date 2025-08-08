@@ -29,6 +29,7 @@ run_worker_first = false
 not_found_handling = "single-page-application"
 
 [triggers]
+# This cron triggers the worker at 5:00 AM UTC every day
 crons = ["0 5 * * *"]
 
 [version_metadata]

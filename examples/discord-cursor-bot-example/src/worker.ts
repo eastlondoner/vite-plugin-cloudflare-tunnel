@@ -697,17 +697,15 @@ async function handleTaskCommand(
   ctx: ExecutionContext
 ): Promise<InteractionResponse> {
   const prompt = commandData.options?.find((opt: any) => opt.name === 'prompt')?.value;
-  let repository = commandData.options?.find((opt: any) => opt.name === 'repository')?.value;
+  let repository: string | null = null;
 
   if (!prompt) {
     return createErrorResponse('Prompt is required');
   }
 
-  // If no repository provided, try to get channel default
-  if (!repository) {
-    const configManager = new ChannelConfigManager(env.API_KEYS);
-    repository = await configManager.getDefaultRepository(channelId);
-  }
+  // Resolve repository strictly from channel default
+  const configManager = new ChannelConfigManager(env.API_KEYS);
+  repository = await configManager.getDefaultRepository(channelId);
 
   if (!repository) {
     return createErrorResponseWithButton(
