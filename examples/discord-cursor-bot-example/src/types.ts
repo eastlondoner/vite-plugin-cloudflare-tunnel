@@ -93,6 +93,13 @@ export interface ChannelApiKey {
   updatedAt: string;
 }
 
+export interface UserApiKey {
+  userId: string;
+  apiKey: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // Channel configuration for Discord integration
 export interface ChannelConfig {
   channelId: string;
