@@ -61,7 +61,7 @@ const DNSRecordSchema = z.object({
   name: z.string(),
   content: z.string(),
   proxied: z.boolean(),
-  comment: z.string().optional(),
+  comment: z.string().nullish(),
 });
 
 // Type definitions (exported for potential external use)
