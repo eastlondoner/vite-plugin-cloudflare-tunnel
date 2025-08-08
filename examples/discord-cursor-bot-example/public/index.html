@@ -35,9 +35,13 @@
                     <div class="step-number">1</div>
                     <div class="step-content">
                         <h3>🔑 Set Your API Key</h3>
-                        <p>First, set your Cursor API key for the channel (this is done securely via a private modal):</p>
+                        <p>Set a Cursor API key via a private modal. Choose to set a <strong>personal user key</strong> or a <strong>shared channel key</strong>:</p>
                         <div class="code-block"><code>/agents set-api-key</code></div>
-                        <p class="tip">💡 Each Discord channel can have its own API key for team isolation</p>
+                        <ul>
+                            <li>Keys are <strong>validated</strong> against Cursor before storage</li>
+                            <li>Inputs are <strong>redacted</strong> from logs and stored interactions</li>
+                            <li>Each channel can have its own shared API key for team isolation</li>
+                        </ul>
                     </div>
                 </div>
 
@@ -47,7 +51,7 @@
                         <h3>⚡ Quick Task Creation</h3>
                         <p>Create an agent with a simple task using the quick command:</p>
                         <div class="code-block"><code>/task Fix the login button styling issue</code></div>
-                        <p class="tip">💡 Set a default repository with <code>/agents set-default-repo</code> to make this even faster</p>
+                        <p class="tip">💡 Key resolution for creation: <strong>user → channel → default</strong>. Set a default repository with <code>/agents set-default-repo</code> to make this even faster.</p>
                     </div>
                 </div>
 
@@ -57,7 +61,7 @@
                         <h3>🎯 Full Agent Creation</h3>
                         <p>Create an agent with a specific repository and detailed instructions:</p>
                         <div class="code-block"><code>/agents create prompt:"Add user authentication with OAuth" repository:"https://github.com/yourorg/yourrepo"</code></div>
-                        <p class="tip">💡 The bot creates a dedicated Discord thread for each agent's progress updates</p>
+                        <p class="tip">💡 The bot creates a dedicated Discord thread for each agent's progress updates. Key resolution for creation: <strong>user → channel → default</strong>.</p>
                     </div>
                 </div>
 
@@ -74,7 +78,7 @@
                             <div class="thread-message bot">🔄 <strong>Follow-up Message Sent</strong><br>
                             Your follow-up request has been sent to the agent.</div>
                         </div>
-                        <p class="tip">💡 Just reply in the thread - the bot will automatically send your message to the agent</p>
+                        <p class="tip">💡 Just reply in the thread—the bot will send your message to the agent. Key resolution for thread replies: <strong>channel → last replier's user key → default</strong>.</p>
                     </div>
                 </div>
             </div>

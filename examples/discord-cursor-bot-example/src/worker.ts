@@ -467,6 +467,11 @@ async function handleApiKeyModalSubmit(
     return createErrorResponse('Invalid API key. Please check your Cursor API key.');
   }
 
+  // Ensure we have a valid target identifier parsed from the modal custom_id
+  if (!targetId) {
+    return createErrorResponse('Invalid API key modal submission: missing target.');
+  }
+
   // Store the API key based on type
   if (type === 'user') {
     await keyManager.setUserApiKey(targetId, apiKey);
@@ -1102,7 +1107,25 @@ async function handleDiscordInteraction(request: Request, env: Env, ctx: Executi
   const timestamp = request.headers.get('X-Signature-Timestamp');
   const internalKey = request.headers.get('X-Discord-Webhook-Secret');
   const body = await request.text();
-  console.log('🔒 Interaction:\n' + JSON.stringify(JSON.parse(body), null, 2));
+  // Redact sensitive modal input from logs
+  try {
+    const parsed = JSON.parse(body);
+    if (parsed?.type === InteractionType.MODAL_SUBMIT && parsed?.data?.components) {
+      const redacted = JSON.parse(body);
+      for (const row of redacted.data.components || []) {
+        for (const comp of row.components || []) {
+          if (typeof comp.value === 'string' && comp.custom_id?.includes('api_key')) {
+            comp.value = '[REDACTED]';
+          }
+        }
+      }
+      console.log('🔒 Interaction (redacted):\n' + JSON.stringify(redacted, null, 2));
+    } else {
+      console.log('🔒 Interaction:\n' + JSON.stringify(parsed, null, 2));
+    }
+  } catch {
+    console.log('🔒 Interaction (unparsed)');
+  }
 
   if(internalKey === process.env.INTERNAL_WEBHOOK_SECRET) {
     console.log('🔒 Internal key detected');
@@ -1126,7 +1149,18 @@ async function handleDiscordInteraction(request: Request, env: Env, ctx: Executi
   // Store interaction for debugging
   try {
     const storage = new AgentStorageService(env.DB);
-    await storage.storeInteraction(interaction);
+    // Redact any API key-like fields before storing
+    const toStore = JSON.parse(JSON.stringify(interaction));
+    if (toStore?.type === InteractionType.MODAL_SUBMIT && toStore?.data?.components) {
+      for (const row of toStore.data.components || []) {
+        for (const comp of row.components || []) {
+          if (typeof comp.value === 'string' && comp.custom_id?.includes('api_key')) {
+            comp.value = '[REDACTED]';
+          }
+        }
+      }
+    }
+    await storage.storeInteraction(toStore);
     console.log('🔒 Interaction stored');
   } catch (error) {
     console.error('Failed to store interaction:', error);

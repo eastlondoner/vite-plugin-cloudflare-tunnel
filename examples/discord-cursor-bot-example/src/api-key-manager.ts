@@ -26,14 +26,25 @@ export class ApiKeyManager {
       throw new Error('Channel ID and API key are required');
     }
 
+    const storageKey = this.getStorageKey(channelId);
+    let createdAt = new Date().toISOString();
+    try {
+      const existing = await this.kv.get(storageKey);
+      if (existing) {
+        const parsed = JSON.parse(existing) as ChannelApiKey;
+        if (parsed.createdAt) createdAt = parsed.createdAt;
+      }
+    } catch {
+      // ignore parse errors, treat as new
+    }
+
     const keyData: ChannelApiKey = {
       channelId,
       apiKey,
-      createdAt: new Date().toISOString(),
+      createdAt,
       updatedAt: new Date().toISOString(),
     };
 
-    const storageKey = this.getStorageKey(channelId);
     await this.kv.put(storageKey, JSON.stringify(keyData));
     
     console.log(`🔑 Stored API key for channel ${channelId}`);
@@ -85,14 +96,25 @@ export class ApiKeyManager {
       throw new Error('User ID and API key are required');
     }
 
+    const storageKey = this.getUserStorageKey(userId);
+    let createdAt = new Date().toISOString();
+    try {
+      const existing = await this.kv.get(storageKey);
+      if (existing) {
+        const parsed = JSON.parse(existing) as UserApiKey;
+        if (parsed.createdAt) createdAt = parsed.createdAt;
+      }
+    } catch {
+      // ignore parse errors
+    }
+
     const keyData: UserApiKey = {
       userId,
       apiKey,
-      createdAt: new Date().toISOString(),
+      createdAt,
       updatedAt: new Date().toISOString(),
     };
 
-    const storageKey = this.getUserStorageKey(userId);
     await this.kv.put(storageKey, JSON.stringify(keyData));
     
     console.log(`🔑 Stored user API key for user ${userId}`);

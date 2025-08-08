@@ -128,8 +128,8 @@ export class ThreadInteractionHandler {
   private getMessagesSinceLastBot(messages: Array<any>): Array<any> {
     console.log(`🔍 Analyzing ${messages.length} messages to find user messages since last bot message`);
 
-    // Sort messages by creation time (oldest first)
-    const sortedMessages = messages.sort((a, b) => 
+    // Sort messages by creation time (oldest first) without mutating original array
+    const sortedMessages = [...messages].sort((a, b) => 
       new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     );
 
@@ -160,8 +160,8 @@ export class ThreadInteractionHandler {
    * Get the user ID of the last non-bot message in the thread
    */
   private getLastReplyUserId(messages: Array<any>): string {
-    // Sort messages by creation time (newest first)
-    const sortedMessages = messages.sort((a, b) => 
+    // Sort messages by creation time (newest first) without mutating original array
+    const sortedMessages = [...messages].sort((a, b) => 
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
     
@@ -209,7 +209,7 @@ export class ThreadInteractionHandler {
   private async createFollowUpMessage(
     agentId: string, 
     followUpMessage: string, 
-    userId: string, 
+    lastReplyUserId: string, 
     threadId: string
   ): Promise<void> {
     try {
@@ -225,7 +225,7 @@ export class ThreadInteractionHandler {
       const apiKeyManager = createApiKeyManager(this.env.API_KEYS);
       const apiKey = await apiKeyManager.resolveApiKeyForThread(
         agent.discordChannelId, 
-        userId, 
+        lastReplyUserId, 
         this.env.CURSOR_API_KEY
       );
       

@@ -7,7 +7,10 @@ This combines Discord's [Interactions and Responding documentation](https://disc
 ## ✨ Features
 
 - 🤖 **Discord slash commands** for agent management (`/agents`, `/task`, `/agent logs`)
-- 🔑 **Channel-specific API keys** stored securely in Cloudflare KV
+- 🔑 **API keys per user and per channel** stored securely in Cloudflare KV
+- 🧭 **Hierarchical API key resolution**
+  - Agent creation: personal user key → channel key → default key
+  - Thread replies: channel key → last replier's user key → default key
 - 🧵 **Auto-created Discord threads** for each agent with real-time progress updates  
 - 📡 **Webhook integration** receives updates from Cursor API and posts to Discord
 - 💾 **D1 Database storage** for agent records and thread relationships
@@ -19,21 +22,24 @@ This combines Discord's [Interactions and Responding documentation](https://disc
 
 ## 🎮 Discord Commands
 
-### `/agents set-api-key [api_key]`
-- **Purpose**: Store a Cursor API key for the current Discord channel
-- **Storage**: Securely stored in KV storage keyed by Channel ID
-- **Validation**: Validates the API key before storing
+### `/agents set-api-key`
+- **Purpose**: Store a Cursor API key via secure Discord Modal
+- **Type**: Choose to set a key for `user` (personal) or `channel` (shared)
+- **Validation**: API key is validated against Cursor (models endpoint) before storing
+- **Security**: Modal input is private; values are redacted from logs and stored interactions
 - **Response**: Ephemeral success/error message
 
 ### `/task [prompt]`
 - **Purpose**: Quick shortcut to create a new Cursor agent
 - **Function**: Creates agent and Discord thread for updates
 - **Repository**: Uses a default or channel-configured repository
+- **API Key Resolution**: user → channel → default
 
 ### `/agents create [prompt] [repository]`
 - **Purpose**: Full agent creation with custom repository
 - **Function**: Creates agent and Discord thread for updates
 - **Flexibility**: Allows specifying custom GitHub repository
+- **API Key Resolution**: user → channel → default
 
 ### `/agents list [limit]`
 - **Purpose**: List all agents for the current channel
@@ -41,6 +47,15 @@ This combines Discord's [Interactions and Responding documentation](https://disc
 - **Filtering**: Optional limit parameter
 
 ### `/agent logs [agent_id]`
+### `/agents remove-api-key`
+- **Purpose**: Remove a stored API key
+- **Type**: Choose `user` to remove your personal key or `channel` to remove the channel key
+- **Response**: Ephemeral success/error message
+
+### `/agents api-key-status`
+- **Purpose**: Show which API key would be used for your agent creation, and how thread replies resolve
+- **Display**: Indicates whether personal/channel/default keys are set and highlights the resolution order
+
 - **Purpose**: View conversation logs for a specific agent
 - **Display**: Shows agent's conversation history from Cursor API
 - **Format**: User-friendly conversation display
@@ -190,11 +205,19 @@ wrangler d1 execute discord-cursor-agents --local --command="SELECT * FROM agent
 ## 📝 Usage Flow
 
 1. **Setup**: Use `/agents set-api-key` to configure Cursor API access for your channel
+   - Choose `type:user` to set your personal key, or `type:channel` to set the shared channel key
+   - Keys are validated before storage; errors are returned ephemerally
 2. **Create Agent**: Use `/task "fix the login bug"` or `/agents create` with a custom repository
+   - API key resolution for creation: user → channel → default
 3. **Auto-Thread**: Bot creates a Discord thread for the agent automatically  
 4. **Real-time Updates**: Cursor webhook sends progress updates to the thread
 5. **Monitor**: View all agents in the web dashboard or use `/agents list`
 6. **Review**: Use `/agent logs` to see the full conversation history
+
+### 🔑 API Key Resolution Details
+- **Agent Creation (slash commands)**: personal user key → channel key → default key
+- **Thread Replies (follow-ups in agent threads)**: channel key → last replier's personal user key → default key
+  - Note: For thread replies, the last human replier in the thread is used, not the original creator
 
 ## 🔧 Configuration
 
@@ -215,6 +238,8 @@ wrangler d1 execute discord-cursor-agents --local --command="SELECT * FROM agent
 - API keys are stored in KV storage, not encrypted (suitable for development)
 - Discord interactions are verified using signature validation
 - Each Discord channel can have its own Cursor API key for isolation
+- All API key inputs are validated against Cursor API before storage
+- Sensitive modal values are redacted from logs and stored interactions
 - Webhook endpoints are public but validate request sources
 
 ## 🤝 Contributing
