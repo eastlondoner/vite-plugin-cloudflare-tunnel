@@ -9,7 +9,7 @@ A powerful Vite plugin that automatically creates and manages Cloudflare tunnels
 
 - 🚀 **Zero Configuration** - Works out of the box with minimal setup
 - ⚡ **Quick Tunnel Mode** - Instant public URLs without API tokens or custom domains
-- 🔒 **Automatic HTTPS** - Secure connections via Cloudflare's SSL certificates  
+- 🔒 **Automatic HTTPS** - Secure connections via Cloudflare's SSL certificates
 - 🌐 **Public Access** - Share your local dev server with anyone, anywhere
 - 🎯 **Smart DNS Management** - Automatically creates and manages DNS records
 - 🔄 **Hot Reload Support** - Works seamlessly with Vite's development features
@@ -87,7 +87,7 @@ Your local server is now accessible at `https://dev.yourdomain.com` 🎉
 - **Node.js** 16.0.0 or higher
 - That's it! No Cloudflare account or API token needed.
 
-### For Named Tunnel Mode  
+### For Named Tunnel Mode
 - **Cloudflare Account** with a domain added to your account
 - **Cloudflare API Token** with the following permissions:
   - Account level: `Cloudflare Tunnel:Edit`
@@ -110,7 +110,7 @@ Your local server is now accessible at `https://dev.yourdomain.com` 🎉
    - `SSL and Certificates:Edit`
    - `DNS:Edit`
 
-   **Zone Resources:** Include - All zones (or specific zone)  
+   **Zone Resources:** Include - All zones (or specific zone)
    **Account Resources:** Include - All accounts (or specific account)
 
 5. Copy the generated token and configure it:
@@ -208,7 +208,7 @@ The plugin supports two distinct modes:
 - **Temporary** - URL changes on each restart
 - **Perfect for**: Demos, quick sharing, development testing
 
-### 🏠 Named Tunnel Mode  
+### 🏠 Named Tunnel Mode
 - **Custom domain** - Use your own domain (e.g., `dev.example.com`)
 - **Persistent URL** - Same URL every time
 - **Unique tunnel name** - Give each project its own `tunnelName`; re-using the same name across multiple apps will cause them to share Cloudflare resources (tunnel, DNS records, SSL certificates) and lead to conflicts
@@ -252,7 +252,7 @@ cloudflareTunnel({
   // Optional: Custom DNS configuration
   dns: '*.example.com',              // Wildcard or exact hostname match
   
-  // Optional: Custom SSL certificate configuration  
+  // Optional: Custom SSL certificate configuration
   ssl: '*.example.com',              // Wildcard or exact hostname match
   
   // Optional: Enable debug logging
@@ -265,7 +265,7 @@ cloudflareTunnel({
   // Optional: Cloudflare account ID (auto-detected if omitted)
   accountId: 'your-account-id',
   
-  // Optional: Cloudflare zone ID (auto-detected if omitted) 
+  // Optional: Cloudflare zone ID (auto-detected if omitted)
   zoneId: 'your-zone-id',
   
   // Optional: Resource cleanup configuration
@@ -404,7 +404,7 @@ cloudflareTunnel({
   ssl: '*.example.com'  // Requests wildcard certificate
 })
 
-// Exact hostname SSL - must match the hostname exactly  
+// Exact hostname SSL - must match the hostname exactly
 cloudflareTunnel({
   hostname: 'dev.example.com',
   ssl: 'dev.example.com'  // Requests specific certificate
@@ -430,7 +430,7 @@ When no `ssl` option is provided, the plugin:
 
 > These guidelines cover the most common SSL/TLS situations you might encounter when exposing local development servers through Cloudflare.
 
-0. **First-level subdomains with Universal SSL**  
+0. **First-level subdomains with Universal SSL**
    For a simple subdomain such as `dev.example.com` Cloudflare’s free Universal SSL already includes a certificate that covers `*.example.com`.  
    👉 In this case **no extra certificate** needs to be created – the tunnel is ready as soon as it starts.
 
@@ -441,24 +441,24 @@ When no `ssl` option is provided, the plugin:
    });
    ```
 
-1. **Nested sub-domains without Advanced Certificate Management (ACM)**  
-   If you attempt to use a hostname with more than one level of sub-domain (e.g. `api.dev.example.com`) Cloudflare requires an **Advanced Certificate** to cover that hostname.  
-   Without ACM enabled the plugin cannot order that certificate, so stick to `dev.example.com`, `staging.example.com`, etc.  
+1. **Nested sub-domains without Advanced Certificate Management (ACM)**
+   If you attempt to use a hostname with more than one level of sub-domain (e.g. `api.dev.example.com`) Cloudflare requires an **Advanced Certificate** to cover that hostname.
+   Without ACM enabled the plugin cannot order that certificate, so stick to `dev.example.com`, `staging.example.com`, etc.
    If you do have ACM you can use nested sub-domains freely – see point&nbsp;3 below.
 
-2. **Total TLS support**  
+2. **Total TLS support**
    Cloudflare’s *Total TLS* (a feature inside ACM) automatically provisions certificates as soon as a DNS record is created.  
    The plugin detects when Total TLS is enabled and will use these certificates automatically so you don’t consume any of your ACM quota.  
    We highly recommend enabling Total TLS on development zones.
 
-3. **Pre-provisioning a wildcard with the `ssl` option**  
+3. **Pre-provisioning a wildcard with the `ssl` option**
    Ordering a brand-new certificate can take **3-10&nbsp;minutes**. If you regularly work with many nested sub-domains you can order **one wildcard certificate** upfront and share it between all your dev apps:
 
    ```typescript
    // Provision a single *.dev.example.com certificate
    cloudflareTunnel({
      hostname: 'api.dev.example.com',
-    tunnelName: 'api-dev-tunnel',    // Unique name for this tunnel
+     tunnelName: 'api-dev-tunnel',    // Unique name for this tunnel
      ssl: '*.dev.example.com'      // wildcard cert covers api.*, auth.*, etc.
    });
    ```
@@ -484,7 +484,7 @@ The plugin supports comprehensive logging to help debug tunnel issues:
 ### Log Levels
 
 - `debug` - Most verbose, shows all tunnel activity
-- `info` - General information about tunnel status  
+- `info` - General information about tunnel status
 - `warn` - Warning messages
 - `error` - Error messages only
 - `fatal` - Only fatal errors
@@ -560,7 +560,7 @@ npm run dev
 ```bash
 cd examples/discord-webhook-example
 npm install
-cp env.example .env
+cp .env.example .env
 # Edit .env with your Discord bot public key and Cloudflare API token
 npm run dev
 ```
@@ -573,7 +573,7 @@ npm run dev
 - Ensure your domain is added to your Cloudflare account
 - Verify the hostname matches a domain you own
 
-**"API token invalid"**  
+**"API token invalid"**
 - Check your token has all required permissions
 - Ensure the token isn't expired
 
@@ -605,7 +605,7 @@ Enable verbose logging to diagnose issues:
 cloudflareTunnel({
   hostname: 'dev.example.com',
   debug: true,                    // Enable extra debug logging
-  logLevel: 'debug',              // Set cloudflared log level  
+  logLevel: 'debug',              // Set cloudflared log level
   logFile: './debug.log'          // Write logs to file
 })
 ```
