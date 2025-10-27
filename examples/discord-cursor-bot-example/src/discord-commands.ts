@@ -164,7 +164,8 @@ export const AGENT_LOGS_COMMAND = {
       type: ApplicationCommandOptionType.STRING,
       name: 'agent_id',
       description: 'Agent ID to view logs for',
-      required: true
+      required: true,
+      autocomplete: true
     }]
   }]
 } as const;
